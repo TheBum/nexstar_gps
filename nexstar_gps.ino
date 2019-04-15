@@ -1,5 +1,7 @@
 #include <TinyGPS++.h>
 #include <SoftwareSerial.h>
+#include <Wire.h>
+#include <SSD1306AsciiWire.h>
 
 #include "define.h"
 
@@ -11,6 +13,14 @@ const int LED_GPS_STATE = 12;
 
 TinyGPSPlus gps;
 SoftwareSerial ss(RXPIN, TXPIN);
+
+SSD1306AsciiWire oled;
+// 0X3C+SA0 - 0x3C or 0x3D
+#define I2C_ADDRESS 0x3C
+#define GPS_LAT_ROW 0
+#define GPS_LON_ROW 1
+#define GPS_SAT_ROW 2
+#define GPS_UTC_ROW 3
 
 TinyGPSCustom satellitesInView(gps, "GPGSV", 3);
 TinyGPSCustom fixQuality(gps, "GPGGA", 6);  // 0 = invalid, 1 = GPS, 2 = DGPS, etc...
@@ -34,6 +44,8 @@ int ledStateCommActive = LOW;
 unsigned long previousMillis = 0;
 long blink_interval = 0;
 
+char *lineDefs[] = { "Sat  Lat=%s", "%2.2d   Lon=%s" };
+
 void setup() {
   // put your setup code here, to run once:
   pkstate = PREAMBLE_WAIT;
@@ -44,6 +56,12 @@ void setup() {
   ss.begin(9600);
   pinMode(LED_GPS_STATE, OUTPUT);
   pinMode(LED_COMM_ACTIVE, OUTPUT);
+
+  Wire.begin();
+  Wire.setClock(400000L);
+  oled.begin(&Adafruit128x32, I2C_ADDRESS);
+  oled.setFont(System5x7);
+  oled.clear();
 }
 
 void loop() {
@@ -51,13 +69,17 @@ void loop() {
 
   // Feed characters from the GPS module into TinyGPS
   while (ss.available())
+  {
     gps.encode(ss.read());
+  }
 
   // Feed characters from the serial port into the packet decoder
   while (Serial.available())
     packet_decode(Serial.read());
 
   fixQualityInt = getGpsQuality(fixQuality.value());
+
+  updateOled();
 
   // GPS quality LED indication
   if (fixQualityInt > 0) {
@@ -330,4 +352,68 @@ void ledChangeStateCommActive() {
     ledStateCommActive = LOW;
   }
   digitalWrite(LED_COMM_ACTIVE, ledStateCommActive);
+}
+
+void updateOled()
+{
+  // Output to the OLED display
+  for (int row = 0; row < 4; ++row)
+  {
+    char line[50];
+
+    switch (row)
+    {
+      case GPS_SAT_ROW: // Number of satellites
+        if (fixQualityInt > 0)
+        {
+          snprintf(line, sizeof(line), "   # Sats: %02d", 
+                   gps.satellites.value());
+        }
+        else
+        {
+          snprintf(line, sizeof(line), "%s",
+                   ((fixQualityInt == -1) ? "    ** NO DATA **" : "  Acquiring sats..."));
+        }
+        break;
+
+      case GPS_LAT_ROW: // Latitude
+        if (fixQualityInt > 0)
+        {
+          snprintf(line, sizeof(line), " Latitude: %c%9s", 
+                 ((gps.location.lat() < 0.0) ? 'S' : 'N'),
+                 String(fabs(gps.location.lat()), 5).c_str());
+        }
+        else
+        {
+          snprintf(line, sizeof(line), " Latitude: ----.-----");
+        }
+        break;
+
+      case GPS_LON_ROW: // Longitude
+        if (fixQualityInt > 0)
+        {
+          snprintf(line, sizeof(line), "Longitude: %c%9s", 
+                 ((gps.location.lng() < 0.0) ? 'W' : 'E'),
+                 String(fabs(gps.location.lng()), 5).c_str());
+        }
+        else
+        {
+          snprintf(line, sizeof(line), "Longitude: ----.-----");
+        }
+        break;
+
+      case GPS_UTC_ROW: // Date/time
+        snprintf(line, sizeof(line),
+                 ((fixQualityInt > 0) ? "%02d/%02d/%02d UTC %02d:%02d:%02d"
+                                      : "--/--/-- UTC --:--:--"),
+                 gps.date.month(), gps.date.day(), gps.date.year() % 100,
+                 gps.time.hour(), gps.time.minute(), gps.time.second());
+        break;
+    }
+
+    oled.setRow(row);
+    oled.setCol(0);
+    oled.print(line);
+    oled.clearToEOL();
+  }
 }
