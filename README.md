@@ -24,8 +24,7 @@ To build this, you will need:
  
 ## Construction
  
-See [schematics diagram](skysync_gps_clone.png).
-(Updated schematic and PCB layout with an Arduino Nano and the OLED display forthcoming.)
+See [schematics diagram](eagle-Nano/Nano-schematic.png).
  
 ## Libraries
  
@@ -49,6 +48,8 @@ https://www.nexstarsite.com/download/manuals/NexStarCommunicationProtocolV1.2.zi
 https://sites.google.com/site/wayneholder/nexstar-direct-telescope-mount-control
 https://www.nexstarsite.com/download/CelestronAS_PCinterface.pdf
 http://www.paquettefamily.ca/nexstar/NexStar_AUX_Commands_10.pdf
+
+The eagle-Nano folder contains the EAGLE design files for the schematic and board, as well as a zip archive ready for upload to a PCB service (e.g. https://jlcpcb.com).
  
 ## Attention
  
